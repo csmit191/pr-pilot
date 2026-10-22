@@ -1,0 +1,44 @@
+# Copy to .prpilot.yml in the root of the repo PR Pilot reviews.
+# Everything is optional; omitted settings use the defaults shown here.
+# PR Pilot reads this file from the TARGET branch, so changes take effect after merge.
+# Unknown keys are rejected (and defaults are used), so typos don't fail silently.
+
+version: 1
+
+# Files no rule looks at.
+ignore: []
+#  - "vendor/**"
+#  - "docs/**"
+
+rules:
+  secrets:
+    enabled: true
+    entropyThreshold: 4.5   # bits/char; lower = more findings and more false positives
+    minLength: 32           # shortest string considered for the entropy check
+    allowPaths: []          # e.g. ["test/fixtures/**"]; lockfiles/snapshots are always skipped
+
+  sensitivePaths:           # auth, security, crypto, payment, billing, checkout by default
+    enabled: true
+    severity: high          # low | medium | high | critical
+    # patterns: ["**/auth/**", "**/payments/**"]   # replaces the built-in list
+
+  deletedTests:
+    enabled: true
+    severity: medium
+    # patterns: ["**/*.test.ts"]
+
+  migrations:
+    enabled: true
+    severity: medium       # destructive statements (DROP, TRUNCATE...) are always high
+    # patterns: ["**/migrations/**"]
+
+  dependencies:
+    enabled: true
+    severity: medium        # package.json, requirements.txt, go.mod, ...
+    lockfileSeverity: low   # package-lock.json, yarn.lock, ...
+
+  largeDiff:
+    enabled: true
+    severity: medium
+    maxChangedLines: 800    # lockfiles don't count
+    maxFiles: 50

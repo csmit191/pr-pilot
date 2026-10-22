@@ -10,6 +10,14 @@ export interface GithubClient {
     repo: string,
     pullNumber: number,
   ): Promise<PullRequestDiff>;
+  /** Returns the file's text at `ref`, or null if it doesn't exist there. */
+  getFileContent(
+    installationId: number,
+    owner: string,
+    repo: string,
+    path: string,
+    ref: string,
+  ): Promise<string | null>;
 }
 
 export function createGithubClient(config: Pick<Config, "appId" | "privateKey">): GithubClient {
@@ -30,6 +38,25 @@ export function createGithubClient(config: Pick<Config, "appId" | "privateKey">)
         });
         return data;
       });
+    },
+
+    async getFileContent(installationId, owner, repo, path, ref) {
+      const octokit = await app.getInstallationOctokit(installationId);
+      try {
+        const { data } = await octokit.rest.repos.getContent({
+          owner,
+          repo,
+          path,
+          ref,
+          mediaType: { format: "raw" }, // return the file body as text, not base64 JSON
+        });
+        return typeof data === "string" ? data : null;
+      } catch (err) {
+        if (typeof err === "object" && err !== null && "status" in err && err.status === 404) {
+          return null; // file simply doesn't exist
+        }
+        throw err; // 403 (missing permission), 5xx, network: let the caller decide
+      }
     },
   };
 }

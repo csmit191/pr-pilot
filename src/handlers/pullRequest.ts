@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { GithubClient } from "../github.js";
 import { logger } from "../logger.js";
+import { CONFIG_PATH, parseRiskConfig } from "../risk/config.js";
+import { scanDiff } from "../risk/scan.js";
 
 // Only the fields we use. zod strips the rest and rejects malformed payloads.
 const pullRequestPayload = z.object({
@@ -8,15 +10,17 @@ const pullRequestPayload = z.object({
   number: z.number(),
   installation: z.object({ id: z.number() }).optional(),
   repository: z.object({ name: z.string(), owner: z.object({ login: z.string() }) }),
-  pull_request: z.object({ user: z.object({ login: z.string() }) }),
+  pull_request: z.object({
+    user: z.object({ login: z.string() }),
+    base: z.object({ sha: z.string() }),
+  }),
 });
 
 const HANDLED_ACTIONS = new Set(["opened", "synchronize"]);
 
-export async function handlePullRequest(
-  payload: unknown,
-  deps: Pick<GithubClient, "getPullRequestDiff">,
-): Promise<void> {
+type Deps = Pick<GithubClient, "getPullRequestDiff" | "getFileContent">;
+
+export async function handlePullRequest(payload: unknown, deps: Deps): Promise<void> {
   const parsed = pullRequestPayload.safeParse(payload);
   if (!parsed.success) {
     logger.warn("Unexpected pull_request payload shape", { issues: parsed.error.issues.length });
@@ -30,15 +34,35 @@ export async function handlePullRequest(
     return;
   }
 
-  const diff = await deps.getPullRequestDiff(
-    installation.id,
-    repository.owner.login,
-    repository.name,
-    number,
-  );
+  const owner = repository.owner.login;
+  const repo = repository.name;
+
+  const diff = await deps.getPullRequestDiff(installation.id, owner, repo, number);
+
+  // Read the config from the BASE commit (the target branch), never from the PR's own code.
+  // Otherwise a PR could add `ignore: ["src/auth/**"]` to hide its own risky changes.
+  let configText: string | null = null;
+  try {
+    configText = await deps.getFileContent(
+      installation.id,
+      owner,
+      repo,
+      CONFIG_PATH,
+      pull_request.base.sha,
+    );
+  } catch (err) {
+    logger.warn(`Could not read ${CONFIG_PATH}; using defaults`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  const { config, warning } = parseRiskConfig(configText);
+  if (warning) logger.warn("Invalid review configuration", { repo: `${owner}/${repo}`, warning });
+
+  const flags = scanDiff(diff, config);
 
   logger.info("Pull request received", {
-    repo: `${repository.owner.login}/${repository.name}`,
+    repo: `${owner}/${repo}`,
     pr: number,
     action,
     author: pull_request.user.login,
@@ -46,5 +70,7 @@ export async function handlePullRequest(
     additions: diff.files.reduce((sum, f) => sum + f.additions, 0),
     deletions: diff.files.reduce((sum, f) => sum + f.deletions, 0),
     truncated: diff.truncated,
+    flagCount: flags.length,
+    flags,
   });
 }
