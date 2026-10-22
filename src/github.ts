@@ -1,13 +1,15 @@
 import { App } from "octokit";
 import type { Config } from "./config.js";
+import { fetchPullRequestDiff } from "./diff/fetch.js";
+import type { PullRequestDiff } from "./diff/types.js";
 
 export interface GithubClient {
-  listChangedFiles(
+  getPullRequestDiff(
     installationId: number,
     owner: string,
     repo: string,
     pullNumber: number,
-  ): Promise<string[]>;
+  ): Promise<PullRequestDiff>;
 }
 
 export function createGithubClient(config: Pick<Config, "appId" | "privateKey">): GithubClient {
@@ -16,17 +18,18 @@ export function createGithubClient(config: Pick<Config, "appId" | "privateKey">)
   const app = new App({ appId: config.appId, privateKey: config.privateKey });
 
   return {
-    async listChangedFiles(installationId, owner, repo, pullNumber) {
+    async getPullRequestDiff(installationId, owner, repo, pullNumber) {
       const octokit = await app.getInstallationOctokit(installationId);
-      // paginate() follows Link headers; the API returns at most 100 files per page
-      // (and caps at 3000 files total per PR).
-      const files = await octokit.paginate(octokit.rest.pulls.listFiles, {
-        owner,
-        repo,
-        pull_number: pullNumber,
-        per_page: 100,
+      return fetchPullRequestDiff(async (page, perPage) => {
+        const { data } = await octokit.rest.pulls.listFiles({
+          owner,
+          repo,
+          pull_number: pullNumber,
+          per_page: perPage,
+          page,
+        });
+        return data;
       });
-      return files.map((f) => f.filename);
     },
   };
 }

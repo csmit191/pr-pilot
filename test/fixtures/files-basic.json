@@ -1,0 +1,72 @@
+[
+  {
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "filename": "src/review/summary.ts",
+    "status": "added",
+    "additions": 3,
+    "deletions": 0,
+    "changes": 3,
+    "blob_url": "https://github.com/acme/widgets/blob/abc123/src/review/summary.ts",
+    "raw_url": "https://github.com/acme/widgets/raw/abc123/src/review/summary.ts",
+    "contents_url": "https://api.github.com/repos/acme/widgets/contents/src/review/summary.ts?ref=abc123",
+    "patch": "@@ -0,0 +1,3 @@\n+export function summarize() {\n+  return \"ok\";\n+}"
+  },
+  {
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "filename": "src/auth/login.ts",
+    "status": "modified",
+    "additions": 2,
+    "deletions": 1,
+    "changes": 3,
+    "blob_url": "https://github.com/acme/widgets/blob/abc123/src/auth/login.ts",
+    "raw_url": "https://github.com/acme/widgets/raw/abc123/src/auth/login.ts",
+    "contents_url": "https://api.github.com/repos/acme/widgets/contents/src/auth/login.ts?ref=abc123",
+    "patch": "@@ -10,7 +10,8 @@ export function login() {\n   const user = find();\n-  return user;\n+  audit(user);\n+  return user;\n }"
+  },
+  {
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "filename": "test/old.test.ts",
+    "status": "removed",
+    "additions": 0,
+    "deletions": 2,
+    "changes": 2,
+    "blob_url": "https://github.com/acme/widgets/blob/abc123/test/old.test.ts",
+    "raw_url": "https://github.com/acme/widgets/raw/abc123/test/old.test.ts",
+    "contents_url": "https://api.github.com/repos/acme/widgets/contents/test/old.test.ts?ref=abc123",
+    "patch": "@@ -1,2 +0,0 @@\n-import { it } from \"vitest\";\n-it(\"works\", () => {});"
+  },
+  {
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "filename": "src/utils/format.ts",
+    "status": "renamed",
+    "additions": 0,
+    "deletions": 0,
+    "changes": 0,
+    "blob_url": "https://github.com/acme/widgets/blob/abc123/src/utils/format.ts",
+    "raw_url": "https://github.com/acme/widgets/raw/abc123/src/utils/format.ts",
+    "contents_url": "https://api.github.com/repos/acme/widgets/contents/src/utils/format.ts?ref=abc123",
+    "previous_filename": "src/utils/fmt.ts"
+  },
+  {
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "filename": "assets/logo.png",
+    "status": "added",
+    "additions": 0,
+    "deletions": 0,
+    "changes": 0,
+    "blob_url": "https://github.com/acme/widgets/blob/abc123/assets/logo.png",
+    "raw_url": "https://github.com/acme/widgets/raw/abc123/assets/logo.png",
+    "contents_url": "https://api.github.com/repos/acme/widgets/contents/assets/logo.png?ref=abc123"
+  },
+  {
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "filename": "package-lock.json",
+    "status": "modified",
+    "additions": 4200,
+    "deletions": 3100,
+    "changes": 7300,
+    "blob_url": "https://github.com/acme/widgets/blob/abc123/package-lock.json",
+    "raw_url": "https://github.com/acme/widgets/raw/abc123/package-lock.json",
+    "contents_url": "https://api.github.com/repos/acme/widgets/contents/package-lock.json?ref=abc123"
+  }
+]

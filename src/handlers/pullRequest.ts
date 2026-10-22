@@ -15,7 +15,7 @@ const HANDLED_ACTIONS = new Set(["opened", "synchronize"]);
 
 export async function handlePullRequest(
   payload: unknown,
-  deps: Pick<GithubClient, "listChangedFiles">,
+  deps: Pick<GithubClient, "getPullRequestDiff">,
 ): Promise<void> {
   const parsed = pullRequestPayload.safeParse(payload);
   if (!parsed.success) {
@@ -30,7 +30,7 @@ export async function handlePullRequest(
     return;
   }
 
-  const files = await deps.listChangedFiles(
+  const diff = await deps.getPullRequestDiff(
     installation.id,
     repository.owner.login,
     repository.name,
@@ -42,6 +42,9 @@ export async function handlePullRequest(
     pr: number,
     action,
     author: pull_request.user.login,
-    changedFiles: files,
+    changedFiles: diff.files.map((f) => f.path),
+    additions: diff.files.reduce((sum, f) => sum + f.additions, 0),
+    deletions: diff.files.reduce((sum, f) => sum + f.deletions, 0),
+    truncated: diff.truncated,
   });
 }
