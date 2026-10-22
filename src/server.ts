@@ -1,6 +1,7 @@
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { logger } from "./logger.js";
 import { verifySignature } from "./signature.js";
+import type { InFlightTracker } from "./util/inflight.js";
 
 const MAX_BODY_BYTES = 25 * 1024 * 1024; // GitHub's documented payload cap is 25 MB.
 
@@ -13,6 +14,8 @@ export interface WebhookEvent {
 export interface ServerOptions {
   secret: string;
   onEvent: (event: WebhookEvent) => Promise<void>;
+  /** If given, every request and the review it starts are registered here, so a shutdown can wait for them. */
+  tracker?: InFlightTracker;
 }
 
 async function readBody(req: IncomingMessage): Promise<Buffer> {
@@ -27,8 +30,8 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-export function createWebhookServer({ secret, onEvent }: ServerOptions): Server {
-  return createServer(async (req, res) => {
+export function createWebhookServer({ secret, onEvent, tracker }: ServerOptions): Server {
+  const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (req.method === "GET" && req.url === "/healthz") {
       res.writeHead(200).end("ok");
       return;
@@ -67,12 +70,21 @@ export function createWebhookServer({ secret, onEvent }: ServerOptions): Server 
 
     const name = String(req.headers["x-github-event"] ?? "unknown");
     const deliveryId = String(req.headers["x-github-delivery"] ?? "unknown");
-    onEvent({ name, deliveryId, payload }).catch((err: unknown) => {
+    const work = onEvent({ name, deliveryId, payload }).catch((err: unknown) => {
       logger.error("Event handler failed", {
         event: name,
         deliveryId,
         error: err instanceof Error ? err.message : String(err),
       });
     });
+    tracker?.track(work);
+  };
+
+  return createServer((req, res) => {
+    const request = handle(req, res).catch((err: unknown) => {
+      logger.error("Webhook request failed", { error: err instanceof Error ? err.message : String(err) });
+      if (!res.headersSent) res.writeHead(500).end();
+    });
+    tracker?.track(request);
   });
 }

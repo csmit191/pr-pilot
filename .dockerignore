@@ -1,0 +1,20 @@
+# Keep secrets, local state, and bulky or irrelevant files out of the build context.
+.git
+.github
+node_modules
+dist
+coverage
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# Not needed to build or run the server
+test
+eval
+docs
+*.md
+Dockerfile
+.dockerignore

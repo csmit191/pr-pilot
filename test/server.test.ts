@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWebhookServer, type WebhookEvent } from "../src/server.js";
+import { createInFlightTracker } from "../src/util/inflight.js";
 
 const secret = "test-secret";
 const sign = (body: string) =>
@@ -61,5 +62,35 @@ describe("webhook server", () => {
   it("returns 404 for unknown routes and 200 for /healthz", async () => {
     expect((await fetch(`${baseUrl}/nope`)).status).toBe(404);
     expect((await fetch(`${baseUrl}/healthz`)).status).toBe(200);
+  });
+});
+
+describe("webhook server: tracking for graceful shutdown", () => {
+  const tracker = createInFlightTracker();
+  let release!: () => void;
+  let tracked: Server;
+  let url: string;
+
+  beforeAll(async () => {
+    tracked = createWebhookServer({
+      secret,
+      tracker,
+      onEvent: () => new Promise<void>((resolve) => (release = resolve)), // a review that takes a while
+    });
+    await new Promise<void>((resolve) => tracked.listen(0, resolve));
+    url = `http://127.0.0.1:${(tracked.address() as AddressInfo).port}`;
+  });
+  afterAll(() => new Promise<void>((resolve) => tracked.close(() => resolve())));
+
+  it("keeps counting the review after the 202 has been sent, until it finishes", async () => {
+    const body = JSON.stringify({ action: "opened" });
+    const res = await fetch(`${url}/webhook`, { method: "POST", body, headers: { "x-hub-signature-256": sign(body), "x-github-event": "pull_request" } });
+    expect(res.status).toBe(202); // the client already has its answer...
+
+    expect(tracker.count()).toBeGreaterThanOrEqual(1); // ...yet the server knows work is still going
+    expect(await tracker.idle(10)).toBe(false);
+
+    release();
+    expect(await tracker.idle(1000)).toBe(true);
   });
 });

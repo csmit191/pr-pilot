@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: CI only needs to read the code.
+permissions:
+  contents: read
+
+# A newer push to the same branch or PR makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Typecheck, lint, test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22] # package.json promises Node >= 20.6, so test the oldest and newest we support
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  docker:
+    name: Docker image builds and boots
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t pr-pilot:ci .
+
+      - name: Start the container and wait until it is healthy
+        run: |
+          # A throwaway key, so no real secret is involved.
+          openssl genrsa 2048 > "$RUNNER_TEMP/key.pem"
+          docker run -d --name pr-pilot -p 3000:3000 \
+            -e WEBHOOK_SECRET=ci-secret \
+            -e GITHUB_APP_ID=1 \
+            -e GITHUB_PRIVATE_KEY="$(cat "$RUNNER_TEMP/key.pem")" \
+            pr-pilot:ci
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/healthz; then echo; exit 0; fi
+            sleep 1
+          done
+          echo "The container never became healthy. Its logs:" >&2
+          docker logs pr-pilot >&2
+          exit 1
+
+      - name: Reject an unsigned webhook
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:3000/webhook -d '{}')
+          test "$status" = "401"
+
+      - name: Stop cleanly on SIGTERM (what a deploy sends)
+        run: |
+          docker stop --time 30 pr-pilot
+          test "$(docker inspect -f '{{.State.ExitCode}}' pr-pilot)" = "0"
+
+  audit:
+    name: Dependency audit (production, informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true # advisories in upstream packages shouldn't block unrelated work
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm audit --omit=dev --audit-level=high

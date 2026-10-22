@@ -1,0 +1,17 @@
+# Weekly update PRs for dependencies, GitHub Actions and the Docker base image.
+# (A nice bonus: PR Pilot reviews these PRs too.)
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
