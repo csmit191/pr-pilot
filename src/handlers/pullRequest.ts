@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { upsertReviewComment } from "../comment/post.js";
+import { renderComment } from "../comment/render.js";
 import type { GithubClient } from "../github.js";
-import type { SummarizeFn } from "../llm/summarize.js";
 import { logger } from "../logger.js";
-import { suggestReviewers } from "../reviewers/suggest.js";
-import { CONFIG_PATH, parseRiskConfig } from "../risk/config.js";
-import { scanDiff } from "../risk/scan.js";
+import { runReview, type PipelineDeps } from "../review/pipeline.js";
+import { createLatestWinsQueue, type LatestWinsQueue } from "../util/latestWins.js";
+import { httpStatus } from "../util/http.js";
 
 // Only the fields we use. zod strips the rest and rejects malformed payloads.
 const pullRequestPayload = z.object({
@@ -17,15 +18,21 @@ const pullRequestPayload = z.object({
     body: z.string().nullish(),
     user: z.object({ login: z.string() }),
     base: z.object({ sha: z.string() }),
+    head: z.object({ sha: z.string() }),
   }),
 });
 
 const HANDLED_ACTIONS = new Set(["opened", "synchronize"]);
 
-type Deps = Pick<GithubClient, "getPullRequestDiff" | "getFileContent" | "getFileHistory"> & {
-  /** Absent when no LLM API key is configured. */
-  summarize?: SummarizeFn;
-};
+type Deps = PipelineDeps &
+  Pick<GithubClient, "listIssueCommentsPage" | "createIssueComment" | "updateIssueComment"> & {
+    /** The id of our GitHub App, used to recognize our own comments. */
+    appId: number;
+    /** Injectable for tests; production uses one shared queue for the whole process. */
+    queue?: LatestWinsQueue;
+  };
+
+const sharedQueue = createLatestWinsQueue();
 
 export async function handlePullRequest(payload: unknown, deps: Deps): Promise<void> {
   const parsed = pullRequestPayload.safeParse(payload);
@@ -43,100 +50,65 @@ export async function handlePullRequest(payload: unknown, deps: Deps): Promise<v
 
   const owner = repository.owner.login;
   const repo = repository.name;
+  const queue = deps.queue ?? sharedQueue;
 
-  const diff = await deps.getPullRequestDiff(installation.id, owner, repo, number);
-
-  // Read the config from the BASE commit (the target branch), never from the PR's own code.
-  // Otherwise a PR could add `ignore: ["src/auth/**"]` to hide its own risky changes.
-  let configText: string | null = null;
-  try {
-    configText = await deps.getFileContent(
-      installation.id,
-      owner,
-      repo,
-      CONFIG_PATH,
-      pull_request.base.sha,
-    );
-  } catch (err) {
-    logger.warn(`Could not read ${CONFIG_PATH}; using defaults`, {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  const { config, warning } = parseRiskConfig(configText);
-  if (warning) logger.warn("Invalid review configuration", { repo: `${owner}/${repo}`, warning });
-
-  // Deterministic rules run first: cheap, instant, and they never depend on the LLM being up.
-  const flags = scanDiff(diff, config);
-
-  logger.info("Pull request received", {
-    repo: `${owner}/${repo}`,
-    pr: number,
-    action,
-    author: pull_request.user.login,
-    changedFiles: diff.files.map((f) => f.path),
-    additions: diff.files.reduce((sum, f) => sum + f.additions, 0),
-    deletions: diff.files.reduce((sum, f) => sum + f.deletions, 0),
-    truncated: diff.truncated,
-    flagCount: flags.length,
-    flags,
-  });
-
-  // Reviewer lookup (GitHub API) and the LLM summary (provider API) don't depend on each other,
-  // so they run at the same time. Neither is allowed to fail the whole review.
-  const findReviewers = async (): Promise<void> => {
-    try {
-      const outcome = await suggestReviewers(
-        {
-          installationId: installation.id,
-          owner,
-          repo,
-          baseSha: pull_request.base.sha,
-          author: pull_request.user.login,
-          files: diff.files,
-        },
-        deps,
-      );
-      logger.info("Reviewer suggestions", {
-        pr: number,
-        codeowners: outcome.codeownersPath,
-        historyFilesChecked: outcome.historyFilesChecked,
-        historyFailures: outcome.historyFailures,
-        reviewers: outcome.reviewers,
-      });
-    } catch (err) {
-      logger.warn("Reviewer suggestion failed", {
-        pr: number,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
-  const summarizeChange = async (): Promise<void> => {
-    if (!deps.summarize) return;
-    try {
-      const result = await deps.summarize({
+  // One review at a time per PR, and only the newest push gets to post. Two quick pushes would
+  // otherwise race: duplicate comments, or an older review overwriting a newer one.
+  const outcome = await queue.run(`${owner}/${repo}#${number}`, async (isSuperseded) => {
+    const review = await runReview(
+      {
+        installationId: installation.id,
+        owner,
+        repo,
+        number,
+        action,
         title: pull_request.title,
         body: pull_request.body,
-        diff,
-        flags,
-      });
-      logger.info("LLM summary", {
+        author: pull_request.user.login,
+        baseSha: pull_request.base.sha,
+      },
+      deps,
+    );
+
+    if (isSuperseded()) {
+      logger.info("Not posting: a newer push is already being reviewed", { pr: number });
+      return;
+    }
+
+    const body = renderComment({
+      flags: review.flags,
+      summary: review.summary,
+      reviewers: review.reviewers?.reviewers ?? [],
+      configWarning: review.configWarning,
+      headSha: pull_request.head.sha,
+    });
+
+    try {
+      const posted = await upsertReviewComment(
+        { installationId: installation.id, owner, repo, pullNumber: number, appId: deps.appId },
+        body,
+        deps,
+      );
+      logger.info("Review comment posted", {
         pr: number,
-        mode: result.mode,
-        calls: result.calls,
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        review: result.summary,
+        action: posted.action,
+        commentId: posted.commentId,
+        chars: body.length,
+        reviewMs: review.durationMs,
       });
     } catch (err) {
-      // The rule-based findings above already stand on their own; an LLM outage must not hide them.
-      logger.warn("LLM summary failed; continuing with rule-based findings only", {
+      const status = httpStatus(err);
+      logger.error("Failed to post review comment", {
         pr: number,
+        status,
         error: err instanceof Error ? err.message : String(err),
+        hint:
+          status === 403 || status === 404
+            ? "Check that the GitHub App has 'Pull requests: Read & write' permission and that the repo owner accepted it."
+            : undefined,
       });
     }
-  };
+  });
 
-  await Promise.all([findReviewers(), summarizeChange()]);
+  if (outcome.skipped) logger.info("Skipped review: superseded by a newer push", { pr: number });
 }

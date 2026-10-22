@@ -22,7 +22,9 @@ const server = createWebhookServer({
   secret: config.webhookSecret,
   onEvent: async ({ name, deliveryId, payload }) => {
     logger.info("Webhook accepted", { event: name, deliveryId });
-    if (name === "pull_request") await handlePullRequest(payload, { ...github, summarize });
+    if (name === "pull_request") {
+      await handlePullRequest(payload, { ...github, summarize, appId: config.appId });
+    }
   },
 });
 
