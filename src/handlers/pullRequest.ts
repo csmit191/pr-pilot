@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { GithubClient } from "../github.js";
+import type { SummarizeFn, SummaryResult } from "../llm/summarize.js";
 import { logger } from "../logger.js";
 import { CONFIG_PATH, parseRiskConfig } from "../risk/config.js";
 import { scanDiff } from "../risk/scan.js";
@@ -11,6 +12,8 @@ const pullRequestPayload = z.object({
   installation: z.object({ id: z.number() }).optional(),
   repository: z.object({ name: z.string(), owner: z.object({ login: z.string() }) }),
   pull_request: z.object({
+    title: z.string(),
+    body: z.string().nullish(),
     user: z.object({ login: z.string() }),
     base: z.object({ sha: z.string() }),
   }),
@@ -18,7 +21,10 @@ const pullRequestPayload = z.object({
 
 const HANDLED_ACTIONS = new Set(["opened", "synchronize"]);
 
-type Deps = Pick<GithubClient, "getPullRequestDiff" | "getFileContent">;
+type Deps = Pick<GithubClient, "getPullRequestDiff" | "getFileContent"> & {
+  /** Absent when no LLM API key is configured. */
+  summarize?: SummarizeFn;
+};
 
 export async function handlePullRequest(payload: unknown, deps: Deps): Promise<void> {
   const parsed = pullRequestPayload.safeParse(payload);
@@ -59,6 +65,7 @@ export async function handlePullRequest(payload: unknown, deps: Deps): Promise<v
   const { config, warning } = parseRiskConfig(configText);
   if (warning) logger.warn("Invalid review configuration", { repo: `${owner}/${repo}`, warning });
 
+  // Deterministic rules run first: cheap, instant, and they never depend on the LLM being up.
   const flags = scanDiff(diff, config);
 
   logger.info("Pull request received", {
@@ -72,5 +79,28 @@ export async function handlePullRequest(payload: unknown, deps: Deps): Promise<v
     truncated: diff.truncated,
     flagCount: flags.length,
     flags,
+  });
+
+  if (!deps.summarize) return;
+
+  let result: SummaryResult;
+  try {
+    result = await deps.summarize({ title: pull_request.title, body: pull_request.body, diff, flags });
+  } catch (err) {
+    // The rule-based findings above already stand on their own; an LLM outage must not hide them.
+    logger.warn("LLM summary failed; continuing with rule-based findings only", {
+      pr: number,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  logger.info("LLM summary", {
+    pr: number,
+    mode: result.mode,
+    calls: result.calls,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    review: result.summary,
   });
 }
