@@ -23,7 +23,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@eslint/js": "^9.14.0",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^20.17.0",
     "@types/picomatch": "^4.0.3",
     "eslint": "^9.14.0",
