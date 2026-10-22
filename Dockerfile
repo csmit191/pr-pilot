@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
+# Node 24 is the current LTS line (Node 25 was a short-lived non-LTS release; bump to 26 by hand once it is LTS).
 # ---- Build stage: install everything and compile the TypeScript --------------------------------
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 
 # Dependencies first, so this layer is cached until package*.json changes.
@@ -13,7 +14,7 @@ COPY src ./src
 RUN npm run build
 
 # ---- Runtime stage: production dependencies and compiled JavaScript only ----------------------
-FROM node:22-alpine AS runtime
+FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 

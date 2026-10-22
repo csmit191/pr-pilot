@@ -7,6 +7,18 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # ESLint and its @eslint/* packages must move together, so they arrive as one PR.
+      eslint:
+        patterns:
+          - "eslint"
+          - "@eslint/*"
+    ignore:
+      # Major jumps that are migrations, not bumps. Do them deliberately, on a branch.
+      - dependency-name: "zod" # the code relies on zod 3 behavior (.default({}), ZodTypeDef)
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
@@ -15,3 +27,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    ignore:
+      # Only LTS lines belong in a production image. Odd-numbered Node releases (like 25) are short-lived.
+      # Bump the major by hand when a new LTS line is current.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
