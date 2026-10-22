@@ -1,0 +1,8 @@
+# One MERGED pull request per line, as "owner/repo#123" or a full GitHub URL.
+# Lines starting with # are comments. Copy this file to eval/prs.txt and replace the examples.
+#
+# Aim for 20-30 PRs from several different public repositories, in a mix of sizes and kinds
+# (see eval/README.md, "Choosing PRs").
+#
+#   expressjs/express#1234
+#   https://github.com/expressjs/express/pull/1234

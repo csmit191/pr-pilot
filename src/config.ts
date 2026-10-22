@@ -1,3 +1,6 @@
+/** Cheapest tier; override with LLM_MODEL. Check Anthropic's docs for current model IDs. */
+export const DEFAULT_LLM_MODEL = "claude-haiku-5-5";
+
 export interface Config {
   port: number;
   webhookSecret: string;
@@ -23,7 +26,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // .env files can't hold real newlines in one line, so we store "\n" and expand it here.
     privateKey: required("GITHUB_PRIVATE_KEY").replace(/\\n/g, "\n"),
     anthropicApiKey: env.ANTHROPIC_API_KEY || undefined,
-    // Check Anthropic's models page for current IDs; override with LLM_MODEL without code changes.
-    llmModel: env.LLM_MODEL || "claude-haiku-5-5",
+    llmModel: env.LLM_MODEL || DEFAULT_LLM_MODEL,
   };
 }

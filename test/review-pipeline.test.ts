@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PullRequestDiff } from "../src/diff/types.js";
 import type { GithubClient } from "../src/github.js";
 import { LlmError } from "../src/llm/provider.js";
-import type { SummarizeFn, SummaryResult } from "../src/llm/summarize.js";
+import { LlmOutputError, type SummarizeFn, type SummaryResult } from "../src/llm/summarize.js";
 import { logger } from "../src/logger.js";
 import { runReview, type ReviewContext } from "../src/review/pipeline.js";
 
@@ -82,6 +82,26 @@ describe("runReview", () => {
     expect(result.summary).toMatchObject({ status: "failed", error: expect.stringContaining("529") });
     expect(result.flags).toHaveLength(1);
     expect(result.reviewers).not.toBeNull();
+  });
+
+  it("reports the tokens a failed summary already spent, so cost isn't under-counted", async () => {
+    quiet();
+    const deps = makeDeps();
+    deps.summarize.mockRejectedValue(new LlmOutputError("Model output failed validation after one retry.", { inputTokens: 200, outputTokens: 40 }));
+    const result = await runReview(ctx, deps);
+    expect(result.summary).toEqual({
+      status: "failed",
+      error: expect.stringContaining("failed validation"),
+      usage: { inputTokens: 200, outputTokens: 40 },
+    });
+  });
+
+  it("reports no token usage when the provider itself failed (nothing was generated)", async () => {
+    quiet();
+    const deps = makeDeps();
+    deps.summarize.mockRejectedValue(new LlmError("Anthropic API error (HTTP 500)", 500));
+    const result = await runReview(ctx, deps);
+    expect((result.summary as { usage?: unknown }).usage).toBeUndefined();
   });
 
   it("surfaces an invalid .prpilot.yml as a warning and still scans", async () => {

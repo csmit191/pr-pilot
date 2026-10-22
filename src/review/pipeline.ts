@@ -1,6 +1,7 @@
 import type { PullRequestDiff } from "../diff/types.js";
 import type { GithubClient } from "../github.js";
-import type { SummarizeFn, SummaryResult } from "../llm/summarize.js";
+import type { LlmUsage } from "../llm/provider.js";
+import { LlmOutputError, type SummarizeFn, type SummaryResult } from "../llm/summarize.js";
 import { logger } from "../logger.js";
 import { suggestReviewers, type SuggestOutcome } from "../reviewers/suggest.js";
 import { CONFIG_PATH, parseRiskConfig } from "../risk/config.js";
@@ -23,7 +24,7 @@ export interface ReviewContext {
 
 export type SummaryOutcome =
   | { status: "disabled" } // no LLM configured
-  | { status: "failed"; error: string }
+  | { status: "failed"; error: string; usage?: LlmUsage } // usage: tokens spent on invalid answers
   | { status: "ok"; result: SummaryResult };
 
 export interface ReviewResult {
@@ -130,7 +131,8 @@ export async function runReview(ctx: ReviewContext, deps: PipelineDeps): Promise
         pr: number,
         error: errorMessage(err),
       });
-      return { status: "failed", error: errorMessage(err) };
+      // A model that answered with invalid output still cost tokens; report them so cost isn't under-counted.
+      return { status: "failed", error: errorMessage(err), usage: err instanceof LlmOutputError ? err.usage : undefined };
     }
   };
 
