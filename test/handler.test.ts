@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PullRequestDiff } from "../src/diff/types.js";
+import type { GithubClient } from "../src/github.js";
 import { handlePullRequest } from "../src/handlers/pullRequest.js";
 import { LlmError } from "../src/llm/provider.js";
 import type { SummarizeFn, SummaryResult } from "../src/llm/summarize.js";
@@ -34,10 +35,16 @@ const payload = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-function makeDeps(configText: string | null = null) {
+function makeDeps(configText: string | null = null, codeownersText: string | null = null) {
   return {
     getPullRequestDiff: vi.fn(async () => diff),
-    getFileContent: vi.fn(async () => configText),
+    // Path-aware: the config and CODEOWNERS are different files.
+    getFileContent: vi.fn<GithubClient["getFileContent"]>(async (_installationId, _owner, _repo, path) => {
+      if (path === ".prpilot.yml") return configText;
+      if (path === ".github/CODEOWNERS") return codeownersText;
+      return null;
+    }),
+    getFileHistory: vi.fn<GithubClient["getFileHistory"]>(async () => []),
     summarize: vi.fn<SummarizeFn>(async () => summaryResult),
   };
 }
@@ -163,10 +170,14 @@ describe("handlePullRequest: LLM summary", () => {
   it("skips the LLM step when no summarizer is configured", async () => {
     const log = spyOnLogger();
     const full = makeDeps();
-    const deps = { getPullRequestDiff: full.getPullRequestDiff, getFileContent: full.getFileContent };
+    const deps = {
+      getPullRequestDiff: full.getPullRequestDiff,
+      getFileContent: full.getFileContent,
+      getFileHistory: full.getFileHistory,
+    };
     await handlePullRequest(payload(), deps);
     expect(log.info).toHaveBeenCalledWith("Pull request received", expect.anything());
-    expect(log.info).toHaveBeenCalledTimes(1);
+    expect(log.info).not.toHaveBeenCalledWith("LLM summary", expect.anything());
   });
 
   it("logs a warning and keeps the rule-based result when the LLM fails", async () => {
@@ -180,6 +191,61 @@ describe("handlePullRequest: LLM summary", () => {
       "LLM summary failed; continuing with rule-based findings only",
       expect.objectContaining({ pr: 7, error: expect.stringContaining("529") }),
     );
-    expect(log.info).toHaveBeenCalledTimes(1); // no "LLM summary" line
+    expect(log.info).not.toHaveBeenCalledWith("LLM summary", expect.anything());
+  });
+});
+
+describe("handlePullRequest: reviewer suggestions", () => {
+  it("reads CODEOWNERS from the base commit and logs the suggested reviewers", async () => {
+    const log = spyOnLogger();
+    const deps = makeDeps(null, "* @alice @octocat\n");
+    await handlePullRequest(payload(), deps);
+
+    expect(deps.getFileContent).toHaveBeenCalledWith(99, "acme", "widgets", ".github/CODEOWNERS", "base123");
+    expect(log.info).toHaveBeenCalledWith(
+      "Reviewer suggestions",
+      expect.objectContaining({
+        pr: 7,
+        codeowners: ".github/CODEOWNERS",
+        // octocat is the PR author, so only alice is suggested
+        reviewers: [expect.objectContaining({ handle: "alice", kind: "user", ownedFiles: 1 })],
+      }),
+    );
+  });
+
+  it("looks up file history as of the base commit", async () => {
+    spyOnLogger();
+    const deps = makeDeps();
+    await handlePullRequest(payload(), deps);
+    expect(deps.getFileHistory).toHaveBeenCalledWith(99, "acme", "widgets", "src/auth/login.ts", "base123", expect.anything());
+  });
+
+  it("suggests recent committers when the repo has no CODEOWNERS", async () => {
+    const log = spyOnLogger();
+    const deps = makeDeps();
+    deps.getFileHistory.mockResolvedValue([{ authorLogin: "bob", authorIsBot: false, date: new Date().toISOString() }]);
+    await handlePullRequest(payload(), deps);
+    expect(log.info).toHaveBeenCalledWith(
+      "Reviewer suggestions",
+      expect.objectContaining({ codeowners: null, reviewers: [expect.objectContaining({ handle: "bob" })] }),
+    );
+  });
+
+  it("keeps going, and still produces the LLM summary, when history lookups fail", async () => {
+    const log = spyOnLogger();
+    const deps = makeDeps();
+    deps.getFileHistory.mockRejectedValue(new Error("502 Bad Gateway"));
+    await handlePullRequest(payload(), deps);
+
+    expect(log.info).toHaveBeenCalledWith("Reviewer suggestions", expect.objectContaining({ historyFailures: 1, reviewers: [] }));
+    expect(log.info).toHaveBeenCalledWith("LLM summary", expect.anything());
+  });
+
+  it("still suggests reviewers when the LLM step fails", async () => {
+    const log = spyOnLogger();
+    const deps = makeDeps(null, "* @alice\n");
+    deps.summarize.mockRejectedValue(new Error("down"));
+    await handlePullRequest(payload(), deps);
+    expect(log.info).toHaveBeenCalledWith("Reviewer suggestions", expect.objectContaining({ reviewers: [expect.anything()] }));
   });
 });

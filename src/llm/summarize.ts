@@ -14,6 +14,7 @@ import {
 } from "./prompt.js";
 import { LlmError, type LlmProvider, type LlmUsage } from "./provider.js";
 import { fileSummarySchema, reviewSummarySchema, type ReviewSummary } from "./schema.js";
+import { mapWithLimit } from "../util/concurrency.js";
 
 export interface SummarizeInput {
   title: string;
@@ -93,21 +94,6 @@ async function callForJson<T>(
     user = `${call.user}\n\nYour previous reply was rejected. ${lastError}\nReply again with ONLY one valid JSON object that matches the schema.`;
   }
   throw new LlmOutputError(`Model output failed validation after one retry. ${lastError}`, usage);
-}
-
-/** Runs `fn` over `items` with at most `limit` in flight, keeping results in input order. */
-async function mapWithLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const worker = async (): Promise<void> => {
-    for (;;) {
-      const index = next++;
-      if (index >= items.length) return;
-      results[index] = await fn(items[index] as T);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
 }
 
 /** The model may cite a path that isn't in the PR. Don't show invented file names as fact. */

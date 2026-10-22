@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { GithubClient } from "../github.js";
-import type { SummarizeFn, SummaryResult } from "../llm/summarize.js";
+import type { SummarizeFn } from "../llm/summarize.js";
 import { logger } from "../logger.js";
+import { suggestReviewers } from "../reviewers/suggest.js";
 import { CONFIG_PATH, parseRiskConfig } from "../risk/config.js";
 import { scanDiff } from "../risk/scan.js";
 
@@ -21,7 +22,7 @@ const pullRequestPayload = z.object({
 
 const HANDLED_ACTIONS = new Set(["opened", "synchronize"]);
 
-type Deps = Pick<GithubClient, "getPullRequestDiff" | "getFileContent"> & {
+type Deps = Pick<GithubClient, "getPullRequestDiff" | "getFileContent" | "getFileHistory"> & {
   /** Absent when no LLM API key is configured. */
   summarize?: SummarizeFn;
 };
@@ -81,26 +82,61 @@ export async function handlePullRequest(payload: unknown, deps: Deps): Promise<v
     flags,
   });
 
-  if (!deps.summarize) return;
+  // Reviewer lookup (GitHub API) and the LLM summary (provider API) don't depend on each other,
+  // so they run at the same time. Neither is allowed to fail the whole review.
+  const findReviewers = async (): Promise<void> => {
+    try {
+      const outcome = await suggestReviewers(
+        {
+          installationId: installation.id,
+          owner,
+          repo,
+          baseSha: pull_request.base.sha,
+          author: pull_request.user.login,
+          files: diff.files,
+        },
+        deps,
+      );
+      logger.info("Reviewer suggestions", {
+        pr: number,
+        codeowners: outcome.codeownersPath,
+        historyFilesChecked: outcome.historyFilesChecked,
+        historyFailures: outcome.historyFailures,
+        reviewers: outcome.reviewers,
+      });
+    } catch (err) {
+      logger.warn("Reviewer suggestion failed", {
+        pr: number,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
 
-  let result: SummaryResult;
-  try {
-    result = await deps.summarize({ title: pull_request.title, body: pull_request.body, diff, flags });
-  } catch (err) {
-    // The rule-based findings above already stand on their own; an LLM outage must not hide them.
-    logger.warn("LLM summary failed; continuing with rule-based findings only", {
-      pr: number,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
+  const summarizeChange = async (): Promise<void> => {
+    if (!deps.summarize) return;
+    try {
+      const result = await deps.summarize({
+        title: pull_request.title,
+        body: pull_request.body,
+        diff,
+        flags,
+      });
+      logger.info("LLM summary", {
+        pr: number,
+        mode: result.mode,
+        calls: result.calls,
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        review: result.summary,
+      });
+    } catch (err) {
+      // The rule-based findings above already stand on their own; an LLM outage must not hide them.
+      logger.warn("LLM summary failed; continuing with rule-based findings only", {
+        pr: number,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
 
-  logger.info("LLM summary", {
-    pr: number,
-    mode: result.mode,
-    calls: result.calls,
-    inputTokens: result.usage.inputTokens,
-    outputTokens: result.usage.outputTokens,
-    review: result.summary,
-  });
+  await Promise.all([findReviewers(), summarizeChange()]);
 }

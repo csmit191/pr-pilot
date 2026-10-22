@@ -1,0 +1,223 @@
+[
+  {
+    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "node_id": "x",
+    "html_url": "https://github.com/acme/widgets/commit/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit": {
+      "message": "change",
+      "tree": {
+        "sha": "tttttttttttttttttttttttttttttttttttttttt"
+      },
+      "comment_count": 0,
+      "author": {
+        "name": "Alice",
+        "email": "a@example.com",
+        "date": "2026-10-01T12:00:00Z"
+      },
+      "committer": {
+        "name": "Alice",
+        "date": "2026-10-01T12:05:00Z"
+      }
+    },
+    "author": {
+      "login": "alice",
+      "type": "User",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "alice",
+      "type": "User",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "parents": []
+  },
+  {
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "node_id": "x",
+    "html_url": "https://github.com/acme/widgets/commit/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "commit": {
+      "message": "change",
+      "tree": {
+        "sha": "tttttttttttttttttttttttttttttttttttttttt"
+      },
+      "comment_count": 0,
+      "author": {
+        "name": "dependabot",
+        "date": "2026-09-30T08:00:00Z"
+      },
+      "committer": {
+        "date": "2026-09-30T08:00:00Z"
+      }
+    },
+    "author": {
+      "login": "dependabot[bot]",
+      "type": "Bot",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "dependabot[bot]",
+      "type": "Bot",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "parents": []
+  },
+  {
+    "sha": "cccccccccccccccccccccccccccccccccccccccc",
+    "node_id": "x",
+    "html_url": "https://github.com/acme/widgets/commit/cccccccccccccccccccccccccccccccccccccccc",
+    "commit": {
+      "message": "change",
+      "tree": {
+        "sha": "tttttttttttttttttttttttttttttttttttttttt"
+      },
+      "comment_count": 0,
+      "author": {
+        "name": "Unlinked Person",
+        "email": "unlinked@example.com",
+        "date": "2026-09-20T10:00:00Z"
+      },
+      "committer": {
+        "date": "2026-09-20T10:00:00Z"
+      }
+    },
+    "author": null,
+    "committer": null,
+    "parents": []
+  },
+  {
+    "sha": "dddddddddddddddddddddddddddddddddddddddd",
+    "node_id": "x",
+    "html_url": "https://github.com/acme/widgets/commit/dddddddddddddddddddddddddddddddddddddddd",
+    "commit": {
+      "message": "change",
+      "tree": {
+        "sha": "tttttttttttttttttttttttttttttttttttttttt"
+      },
+      "comment_count": 0,
+      "author": {
+        "name": "Ghost",
+        "date": "2026-09-10T10:00:00Z"
+      },
+      "committer": {
+        "date": "2026-09-10T10:00:00Z"
+      }
+    },
+    "author": {},
+    "committer": {},
+    "parents": []
+  },
+  {
+    "sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "node_id": "x",
+    "html_url": "https://github.com/acme/widgets/commit/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "commit": {
+      "message": "change",
+      "tree": {
+        "sha": "tttttttttttttttttttttttttttttttttttttttt"
+      },
+      "comment_count": 0,
+      "committer": {
+        "name": "Bob",
+        "date": "2026-09-01T00:00:00Z"
+      }
+    },
+    "author": {
+      "login": "bob",
+      "type": "User",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "bob",
+      "type": "User",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "parents": []
+  },
+  {
+    "sha": "ffffffffffffffffffffffffffffffffffffffff",
+    "node_id": "x",
+    "html_url": "https://github.com/acme/widgets/commit/ffffffffffffffffffffffffffffffffffffffff",
+    "commit": {
+      "message": "change",
+      "tree": {
+        "sha": "tttttttttttttttttttttttttttttttttttttttt"
+      },
+      "comment_count": 0,
+      "author": {
+        "name": "Carol"
+      },
+      "committer": {}
+    },
+    "author": {
+      "login": "carol",
+      "type": "User",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "carol",
+      "type": "User",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "parents": []
+  },
+  {
+    "sha": "gggggggggggggggggggggggggggggggggggggggg",
+    "author": {
+      "login": "dave",
+      "type": "User",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    }
+  },
+  {
+    "sha": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+    "node_id": "x",
+    "html_url": "https://github.com/acme/widgets/commit/hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+    "commit": {
+      "message": "change",
+      "tree": {
+        "sha": "tttttttttttttttttttttttttttttttttttttttt"
+      },
+      "comment_count": 0,
+      "author": {
+        "name": "renovate",
+        "date": "2026-08-15T00:00:00Z"
+      },
+      "committer": {
+        "date": "2026-08-15T00:00:00Z"
+      }
+    },
+    "author": {
+      "login": "renovate[bot]",
+      "type": "User",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "renovate[bot]",
+      "type": "User",
+      "id": 1,
+      "avatar_url": "https://example.invalid/a.png",
+      "site_admin": false
+    },
+    "parents": []
+  }
+]

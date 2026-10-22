@@ -2,6 +2,7 @@ import { App } from "octokit";
 import type { Config } from "./config.js";
 import { fetchPullRequestDiff } from "./diff/fetch.js";
 import type { PullRequestDiff } from "./diff/types.js";
+import { parseCommitHistory, type CommitInfo } from "./reviewers/history.js";
 
 export interface GithubClient {
   getPullRequestDiff(
@@ -18,6 +19,15 @@ export interface GithubClient {
     path: string,
     ref: string,
   ): Promise<string | null>;
+  /** The most recent commits (newest first) that touched `path`, starting from `ref`. */
+  getFileHistory(
+    installationId: number,
+    owner: string,
+    repo: string,
+    path: string,
+    ref: string,
+    since: string,
+  ): Promise<CommitInfo[]>;
 }
 
 export function createGithubClient(config: Pick<Config, "appId" | "privateKey">): GithubClient {
@@ -57,6 +67,19 @@ export function createGithubClient(config: Pick<Config, "appId" | "privateKey">)
         }
         throw err; // 403 (missing permission), 5xx, network: let the caller decide
       }
+    },
+
+    async getFileHistory(installationId, owner, repo, path, ref, since) {
+      const octokit = await app.getInstallationOctokit(installationId);
+      const { data } = await octokit.rest.repos.listCommits({
+        owner,
+        repo,
+        path,
+        sha: ref,
+        since,
+        per_page: 10,
+      });
+      return parseCommitHistory(data); // validated here, so Octokit's union types don't leak out
     },
   };
 }
