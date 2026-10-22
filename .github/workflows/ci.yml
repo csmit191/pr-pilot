@@ -24,7 +24,7 @@ jobs:
       matrix:
         node: [22, 24] # the two supported LTS lines (Node 20 reached end of life in April 2026)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build the image
         run: docker build -t pr-pilot:ci .
@@ -78,7 +78,7 @@ jobs:
     timeout-minutes: 5
     continue-on-error: true # advisories in upstream packages shouldn't block unrelated work
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 24
