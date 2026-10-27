@@ -197,6 +197,14 @@ describe("collect", () => {
 });
 
 describe("missing files give actionable errors", () => {
+  it("keep the original file-system error as the cause", async () => {
+    const collectError = (await collect(makeLive().live).catch((e: unknown) => e)) as Error;
+    expect((collectError.cause as NodeJS.ErrnoException).code).toBe("ENOENT");
+
+    const runError = (await runCommand({ datasetPath: paths.dataset, snapshotsDir: paths.snapshots, outDir: join(paths.results, "r"), model: null, log }).catch((e: unknown) => e)) as Error;
+    expect((runError.cause as NodeJS.ErrnoException).code).toBe("ENOENT");
+  });
+
   it("collect without a PR list", async () => {
     await expect(collect(makeLive().live)).rejects.toThrow(/PR list .*prs\.txt was not found.*one PR per line/);
   });

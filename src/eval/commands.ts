@@ -55,7 +55,7 @@ async function readRequired<T>(path: string, schema: ZodType<T, ZodTypeDef, unkn
   try {
     return await readJson(path, schema);
   } catch (err) {
-    if (isNotFound(err)) throw new Error(`${path} was not found. ${hint}`);
+    if (isNotFound(err)) throw new Error(`${path} was not found. ${hint}`, { cause: err });
     throw err;
   }
 }
@@ -136,7 +136,9 @@ export async function collectCommand(options: CollectOptions): Promise<CollectOu
   try {
     prList = await readFile(options.prsFile, "utf8");
   } catch (err) {
-    if (isNotFound(err)) throw new Error(`PR list ${options.prsFile} was not found. Create it with one PR per line (owner/repo#123 or a GitHub PR URL).`);
+    if (isNotFound(err)) {
+      throw new Error(`PR list ${options.prsFile} was not found. Create it with one PR per line (owner/repo#123 or a GitHub PR URL).`, { cause: err });
+    }
     throw err;
   }
   const { refs, invalid } = parsePrList(prList);
