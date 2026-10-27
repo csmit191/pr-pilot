@@ -19,6 +19,8 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "vitest"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node" # must match the OLDEST supported Node line (22), not the newest
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
