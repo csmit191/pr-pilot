@@ -1,7 +1,7 @@
 # PR Pilot
 
 [![CI](https://github.com/csmit191/pr-pilot/actions/workflows/ci.yml/badge.svg)](https://github.com/csmit191/pr-pilot/actions/workflows/ci.yml)
-![Node](https://img.shields.io/badge/node-%3E%3D20.6-brightgreen)
+![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)
 
 A GitHub App that reviews pull requests. On every push it posts **one comment** (edited in place, never
@@ -100,7 +100,7 @@ Design decisions worth knowing:
 
 ## Quick start
 
-You need Node.js 20.6 or newer and a GitHub account. An Anthropic API key is optional: without one you
+You need Node.js 22 or newer and a GitHub account. An Anthropic API key is optional: without one you
 get every rule-based check and reviewer suggestions, just no AI summary.
 
 ### 1. Install
